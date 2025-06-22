@@ -1,0 +1,17 @@
+0. activate the environment
+
+eval "$(micromamba shell hook --shell bash)"
+micromamba activate medusa
+
+1. Do huggingface-cli login
+
+(this step is depreciated)
+2. launch setup_toolchain.sh
+chmod +x setup_toolchain.sh
+./setup_toolchain.sh
+
+3. set path to the dataset on launch_train_script.sh
+
+4. launch the script
+chmod +x launch_train_script.sh
+./launch_train_script.sh
