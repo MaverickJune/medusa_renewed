@@ -25,6 +25,8 @@ class MedusaConfig(PretrainedConfig):
         self,
         medusa_num_heads=4,
         medusa_num_layers=1,
+        medusa_heads_coefficient=0.2,
+        medusa_decay_coefficient=0.8,
         version="2",
         base_model_name_or_path="lmsys/vicuna-7b-v1.3",
         **kwargs,
@@ -32,6 +34,8 @@ class MedusaConfig(PretrainedConfig):
         super().__init__(**kwargs)
         self.medusa_num_heads = medusa_num_heads
         self.medusa_num_layers = medusa_num_layers
+        self.medusa_heads_coefficient = medusa_heads_coefficient
+        self.medusa_decay_coefficient = medusa_decay_coefficient
         self.version = version
         self.base_model_name_or_path = base_model_name_or_path
 

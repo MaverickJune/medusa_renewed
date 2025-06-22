@@ -43,6 +43,18 @@ IGNORE_TOKEN_ID = LabelSmoother.ignore_index
 
 # Customized for training Medusa heads
 class CustomizedTrainer(Trainer):
+    def __init__(self, *args, **kwargs):
+        """
+        Customized Trainer for training Medusa heads.
+
+        Args:
+            *args: Positional arguments for the base Trainer.
+            **kwargs: Keyword arguments for the base Trainer.
+        """
+        super().__init__(*args, **kwargs)
+        self.medusa_heads_coefficient = kwargs.get("medusa_heads_coefficient", 0.2)
+        self.medusa_decay_coefficient = kwargs.get("medusa_decay_coefficient", 0.8)
+    
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         """
         Compute the training loss for the model.
@@ -76,7 +88,7 @@ class CustomizedTrainer(Trainer):
             medusa_labels = medusa_labels.view(-1)
             medusa_labels = medusa_labels.to(medusa_logits.device)
             loss_i = loss_fct(medusa_logits, medusa_labels)
-            loss += loss_i
+            loss += loss_i * self.medusa_decay_coefficient ** i * self.medusa_heads_coefficient
             not_ignore = medusa_labels.ne(IGNORE_TOKEN_ID)
             medusa_labels = medusa_labels[not_ignore]
 
@@ -135,6 +147,14 @@ class TrainingArguments(transformers.TrainingArguments):
     medusa_num_layers: int = field(
         default=1,
         metadata={"help": "Number of layers for each Medusa head."},
+    )
+    medusa_heads_coefficient: float = field(
+        default=0.2,
+        metadata={"help": "loss scaler for Medusa heads, default 0.2."},
+    )
+    medusa_decay_coefficient: float = field(
+        default=0.8,
+        metadata={"help": "weight decay coefficient for Medusa heads, default 0.1."},
     )
 
 
@@ -432,6 +452,8 @@ def train():
     medusa_config = MedusaConfig(
         medusa_num_heads=training_args.medusa_num_heads,
         medusa_num_layers=training_args.medusa_num_layers,
+        medusa_heads_coefficient=training_args.medusa_heads_coefficient,
+        medusa_decay_coefficient=training_args.medusa_decay_coefficient,
         base_model_name_or_path=model_args.model_name_or_path,
         version="2"
     )
