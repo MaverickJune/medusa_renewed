@@ -8,6 +8,9 @@ from .medusa_choices import mc_sim_7b_63
 from transformers import AutoTokenizer
 import os
 from huggingface_hub import hf_hub_download
+import sys
+from deepspeed.runtime.zero import GatheredParameters
+import torch.distributed as dist
 
 
 class MedusaConfig(PretrainedConfig):
@@ -107,13 +110,26 @@ class MedusaModel(nn.Module):
             [
                 nn.Sequential(
                     *([ResBlock(self.hidden_size)] * medusa_num_layers),
+                    nn.Linear(self.hidden_size, self.vocab_size, bias=False),
                 )
                 for _ in range(medusa_num_heads)
             ]
         )
 
+        # # Ensure medusa_head's dtype and device align with the base_model
+        # self.medusa_head.to(self.dtype).to(self.device)
+
         # Ensure medusa_head's dtype and device align with the base_model
         self.medusa_head.to(self.base_model.dtype).to(self.base_model.device)
+        
+        base_w = self.base_model.lm_head.weight             # Parameter
+        for head in self.medusa_head:
+            medusa_w = head[-1].weight                      # Parameter of current Medusa head
+
+            # 1. Temporarily gather both tensors on rank-0 only
+            with GatheredParameters([base_w, medusa_w], modifier_rank=0):
+                if dist.get_rank() == 0:                    # copy just once
+                    medusa_w.data.copy_(base_w.data)        # (128 256, 2048)
 
     def get_tokenizer(self):
         """Get the tokenizer of the base model.
@@ -200,14 +216,26 @@ class MedusaModel(nn.Module):
             )
             if output_orig:
                 orig = self.base_model.lm_head(outputs[0])
+                
+        # # legacy        
+        # # Clone the output hidden states
+        # hidden_states = outputs[0].clone()
+        # medusa_logits = []
+        # # TODO: Consider parallelizing this loop for efficiency?
+        # for i in range(self.medusa):
+        #     mhidden_states = self.medusa_head[i](hidden_states)
+        #     mlogits = self.base_model.lm_head(mhidden_states)
+        #     medusa_logits.append(mlogits)
+        # if output_orig:
+        #     return torch.stack(medusa_logits, dim=0), outputs, orig
+        # return torch.stack(medusa_logits, dim=0)
+        
         # Clone the output hidden states
         hidden_states = outputs[0].clone()
         medusa_logits = []
         # TODO: Consider parallelizing this loop for efficiency?
         for i in range(self.medusa):
-            mhidden_states = self.medusa_head[i](hidden_states)
-            mlogits = self.base_model.lm_head(mhidden_states)
-            medusa_logits.append(mlogits)
+            medusa_logits.append(self.medusa_head[i](hidden_states))
         if output_orig:
             return torch.stack(medusa_logits, dim=0), outputs, orig
         return torch.stack(medusa_logits, dim=0)

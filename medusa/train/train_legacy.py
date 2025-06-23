@@ -37,6 +37,7 @@ from torch.nn import CrossEntropyLoss
 from torch.nn import functional as F
 import os
 from medusa.model.medusa_model_legacy import MedusaModel, MedusaConfig
+import sys
 
 IGNORE_TOKEN_ID = LabelSmoother.ignore_index
 
@@ -430,6 +431,10 @@ def train():
     # Freeze the base model
     for param in model.model.parameters():
         param.requires_grad = False
+        
+    # 1. Freeze *all* existing parameters (the base model)
+    for p in model.parameters():
+        p.requires_grad = False           # safe under ZeRO-3
 
     # Add Medusa heads
     medusa_lm_head = MedusaModel(

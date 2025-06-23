@@ -21,6 +21,6 @@ torchrun --nproc_per_node=2 medusa/train/train_legacy.py --model_name_or_path $M
     --logging_steps 1 \
     --model_max_length 8192 \
     --lazy_preprocess True \
-    --medusa_num_heads 2 \
+    --medusa_num_heads 1 \
     --medusa_num_layers 1 \
     --deepspeed deepspeed.json
